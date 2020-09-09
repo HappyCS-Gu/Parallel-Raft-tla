@@ -1,22 +1,23 @@
------------------------------ MODULE multipaxos -----------------------------
+----------------------------- MODULE MultiPaxos -----------------------------
 
 EXTENDS Integers, FiniteSets
     
-CONSTANTS Acceptors,  Nil
-
-
-Value == Nat
+CONSTANTS Acceptors,Nil,Value
 
 Ballots == Nat
-Instances == Nat
-
+Instances == {0,1,2,3,4,5,6}
 Quorums == {Q \in SUBSET Acceptors : Cardinality(Q) > Cardinality(Acceptors) \div 2}
-
 Max(s) == CHOOSE x \in s : \forall y \in s : x \geq y
 
-VARIABLES
-    ballot, vote, leaderVote,1amsgs, 1bmsgs, 2amsgs
-    
+-------------------------------------------------------------------------------
+VARIABLES ballot, 
+          vote, 
+          leaderVote,
+          1amsgs, 
+          1bmsgs, 
+          2amsgs
+          
+--------------------------------------------------------------------------------    
 Init ==
     /\  ballot = [a \in Acceptors |-> 0]
     /\  vote = [a \in Acceptors |-> 
@@ -27,18 +28,20 @@ Init ==
     /\  2amsgs = {}
     /\  leaderVote = [b \in Ballots |-> [i \in Instances |-> <<-1,Nil>>]]
     
-    
+----------------------------------------------------------------------------------    
+
 allEntries == {<<i,<<b,v>> >> : i \in Instances, b \in Ballots \cup {-1}, v \in Value \cup {Nil}}
 
 TypeInv ==
     /\  ballot \in [Acceptors -> {-1} \cup Ballots]
     /\  leaderVote \in [Ballots -> [Instances -> ({-1} \cup Ballots) \times ({Nil} \cup Value)]]
-    /\  vote \in [Acceptors -> [Instances ->  [Ballots -> {Nil} \cup Value]]]
+    /\  vote \in [Acceptors -> [Instances ->  [Ballots -> ({Nil} \cup Value )]]]
     /\  1amsgs \subseteq {<<b>> : b \in Ballots}
-    /\  1bmsgs \subseteq {<<b, e, a>> : b \in Ballots, a \in Acceptors, e \in SUBSET allEntries}
-    /\  2amsgs \subseteq {<<b, i, v>> : i \in Instances, b \in Ballots, v \in Value \cup {Nil}}
-    /\  leaderVote \in [Ballots -> [Instances -> Ballots\cup {-1} \times {Nil} \cup Value]]
-    
+ \*   /\  1bmsgs \subseteq {<<b, e, a>> : b \in Ballots, a \in Acceptors, e \in SUBSET allEntries}
+    /\  2amsgs \subseteq {<<b, i, <<bb,v>>>> : i \in Instances, b \in Ballots, bb \in Ballots,v \in Value \cup {Nil}}
+    /\  leaderVote \in [Ballots -> [Instances -> ((Ballots\cup {-1}) \times ({Nil} \cup Value))]]
+
+------------------------------------------------------------------------------------
 IncreaseBallot(a,b) ==
     /\ ballot[a] < b
     /\ ballot' = [ballot EXCEPT ![a] = b]
@@ -49,9 +52,9 @@ Phase1a(b) ==
     /\  UNCHANGED <<ballot, vote, leaderVote,1bmsgs, 2amsgs>>
 
 MaxAcceptorVote(a, i) ==
-    LET maxBallot == Max({b \in Ballots : vote[a][i][b] # Nil} \cup {-1})
-        v == IF maxBallot > -1 THEN vote[a][i][maxBallot] ELSE Nil
-    IN <<maxBallot, v>>
+  LET maxBallot == Max({b \in Ballots : vote[a][i][b] # Nil} \cup {-1})
+      v == IF maxBallot > -1 THEN vote[a][i][maxBallot] ELSE Nil
+  IN <<maxBallot, v>>
 
 Phase1b(a, b) ==
     /\  ballot[a] < b
@@ -60,41 +63,46 @@ Phase1b(a, b) ==
     /\  1bmsgs' = 1bmsgs \cup 
             {<<b, {<<i,MaxAcceptorVote(a,i)>> : i \in Instances}, a>>}
     /\  UNCHANGED <<vote, leaderVote, 1amsgs, 2amsgs>>
-
+    
 1bMsgs(b,  Q) ==
     {m \in 1bmsgs :  m[3] \in Q  /\ m[1] = b}
 
+
+  
 MaxVote(b, i, Q) ==
     LET entries == UNION{m[2] : m \in 1bMsgs(b,Q)}
         ientries == {e \in entries : e[1] = i}
         maxBal == Max({e[2][1] : e \in ientries})
-    \* ATTENTIION!
-    IN  CHOOSE v \in Value \cup {Nil} \cup 0..100 : \E e \in ientries :   
-            /\ e[2][1] = maxBal /\ e[2][2] = v
-            
-                    
+    IN  CHOOSE v \in Value \cup {Nil}  : \E e \in ientries :   
+            /\ e[2][1] = maxBal /\ e[2][2] = v 
+
+
+                      
 lastInstance(b,Q) == LET entries == UNION{m[2] : m \in 1bMsgs(b,Q)}
                          valid == {e \in entries : e[2][1] /= -1}
                      IN 
                      IF valid = {} THEN -1 ELSE Max({e[1] : e \in valid})
 
+
+            
 Merge(b) == /\ \E Q \in Quorums :
                 /\ \A a \in Q : \E m \in 1bMsgs(b,Q) : m[3] = a
-                /\ leaderVote' = [leaderVote EXCEPT ![b] = [i \in Instances |-> 
+                /\ \E v \in Value : leaderVote' = [leaderVote EXCEPT ![b] = [i \in Instances |-> 
                             IF (i \in 0..lastInstance(b,Q) /\ leaderVote[b][i][1] = -1)
-                            THEN <<b,MaxVote(b,i,Q)>>
+                     \*       THEN <<b,MaxVote(b,i,Q)>>
+                            THEN IF MaxVote(b,i,Q) = Nil THEN <<b,v>>
+                                  ELSE <<b,MaxVote(b,i,Q)>>
                             ELSE leaderVote[b][i]]]
-            /\ UNCHANGED <<vote, ballot, 1amsgs, 1bmsgs, 2amsgs>>
+            /\ UNCHANGED <<vote, ballot, 1amsgs, 1bmsgs, 2amsgs>>            
+            
 
 Propose(b,i) == /\ leaderVote[b][i][1] = -1
                 /\ \E Q \in Quorums :
-                 /\ \A a \in Q : \E m \in 1bMsgs(b,Q) : m[3] = a
-                 /\ LET maxV == MaxVote(b,i,Q)
-                        safe == IF maxV /= Nil THEN {maxV} ELSE Value \cup {Nil}
-                    IN \E v \in safe : leaderVote' = [leaderVote EXCEPT ![b][i] = <<b,v>>]
+                    /\ \A a \in Q : \E m \in 1bMsgs(b,Q) : m[3] = a
+                    /\ \E v \in Value : leaderVote'=[leaderVote EXCEPT ![b][i] = IF MaxVote(b,i,Q) = Nil
+                                                                                 THEN <<b,v>>
+                                                                                 ELSE <<b,MaxVote(b,i,Q)>>]                                
                /\ UNCHANGED <<vote, ballot, 1amsgs, 1bmsgs, 2amsgs>>                                                                                  
-
-
 
 Phase2a(b, i) ==
     /\ leaderVote[b][i][1] = b
@@ -115,13 +123,11 @@ Next ==
     \/  \E a \in Acceptors, b \in Ballots : Phase1b(a,b)
     \/  \E b \in Ballots : Merge(b)
     \/  \E b \in Ballots, i \in Instances : Propose(b,i)
-    \/  \E b \in Ballots, i \in Instances : Phase2a(b, i)
+    \/  \E b \in Ballots, i \in Instances : Phase2a(b,i)
     \/  \E a \in Acceptors, b \in Ballots, i \in Instances : Vote(a, b, i)
     
 Spec == Init /\ [][Next]_<<leaderVote, ballot, vote, 1amsgs, 1bmsgs, 2amsgs>>
-
-
-
+----------------------------------------------------------------------------------------
 Conservative(i,b) ==
     \A a1,a2 \in Acceptors :
         LET v1 == vote[a1][i][b]
@@ -134,8 +140,7 @@ ConservativeVoteArray ==
 
 WellFormed == \A a \in Acceptors : \A i \in Instances : \A b \in Ballots :
     b > ballot[a] => vote[a][i][b] = Nil
-    
-    
+       
 VotedFor(a,i,b,v) == vote[a][i][b] = v
 
 ChosenAt(i,b,v) ==
@@ -151,23 +156,20 @@ SafeAt(v, i, b) ==
     \A b2 \in Ballots : \A v2 \in Value : 
         (b2 < b /\ Choosable(v2, i, b2))
         => v = v2
-
-
+        
 SafeInstanceVoteArray(i) == \A b \in Ballots : \A a \in Acceptors :
     LET v == vote[a][i][b]
     IN  v # Nil => SafeAt(v, i, b)
 
 SafeVoteArray == \A i \in Instances : SafeInstanceVoteArray(i)
 
-
 Inv == TypeInv /\ WellFormed /\ SafeVoteArray /\ ConservativeVoteArray
 
 Correctness ==  
     \A i \in Instances : \A v1,v2 \in Value :
-        Chosen(i, v1) /\ Chosen(i, v2) => v1 = v2
-
+        Chosen(i, v1) /\ Chosen(i, v2) => v1 = v2 
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Apr 21 22:27:55 CST 2020 by assstriker
-\* Created Thu Mar 19 18:02:10 CST 2020 by assstriker
+\* Last modified Wed Sep 09 15:26:35 CST 2020 by 15150
+
