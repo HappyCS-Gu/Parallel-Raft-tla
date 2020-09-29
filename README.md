@@ -8,7 +8,7 @@ We discovered that Parallel-Raft, according to its brief description, neglects t
 
 We provided the formal specifications of MultiPaxos,ParallelRaft-SE and ParallelRaft-CE and verified the refinement mapping from ParallelRaft-SE to Multi-Paxos and the correctness of ParallelRaft-CE using the TLC model checker.
 
-### papaers
+### Papaers
 See [paper-parallelraft](https://github.com/HappyCS-Gu/Parallel-Raft-tla/blob/master/doc/2020.8-jos.pdf)
 ### How to Run
 Create and run TLA models in the usual way
