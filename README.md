@@ -1,6 +1,6 @@
 # Parallel-Raft-tla
 ### Overview
-This project is devoted to provide formal specification and verification using TLA+ for the Parallel-Raft concensus protocol proposed in *PolarFS:An ultra-low latency and failure resilient distributed file system for shared storage cloud database*.
+This project is devoted to provide formal specification and verification using TLA+ for the Parallel-Raft consensus protocol proposed in *PolarFS:An ultra-low latency and failure resilient distributed file system for shared storage cloud database*.
 
 The highlight of Parallel-Raft is that it enables "out-of-order executions". To better understand the relationship between Parallel-Raft and existing concensus algorithms(i.e. Raft,Multi-Paxos), we proposed ParallelRaft-SE(SE stands for "Sequential Execution"). Parallel-Raft is the same as Parallel-Raft except that it prohibits "out-of-order executions". In the way, we established the refinement mapping from ParallelRaft-SE to Multi-Paxos.
 
